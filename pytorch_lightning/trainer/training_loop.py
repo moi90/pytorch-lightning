@@ -241,6 +241,7 @@ class TrainerTrainLoopMixin(ABC):
     on_epoch_start: Callable
     on_epoch_end: Callable
     on_validation_end: Callable
+    on_interrupted: Callable
 
     @abstractmethod
     def get_model(self):
@@ -373,6 +374,7 @@ class TrainerTrainLoopMixin(ABC):
             if self.proc_rank == 0:
                 log.info('Detected KeyboardInterrupt, attempting graceful shutdown...')
             self.interrupted = True
+            self.on_interrupted()
             self.run_training_teardown()
 
     def run_training_epoch(self):

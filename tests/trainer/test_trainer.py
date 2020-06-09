@@ -1,6 +1,7 @@
 import glob
 import math
 import os
+import sys
 import types
 from argparse import Namespace
 
@@ -9,10 +10,9 @@ import torch
 import yaml
 
 import tests.base.utils as tutils
-from pytorch_lightning import Callback, LightningModule
-from pytorch_lightning import Trainer
+from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml, save_hparams_to_tags_csv
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml, save_hparams_to_tags_csv  # NOQA
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.logging import TrainerLoggingMixin
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
@@ -628,10 +628,20 @@ def test_trainer_interrupted_flag(tmpdir):
         def on_batch_start(self, trainer, pl_module):
             raise KeyboardInterrupt
 
+    class HandleInterruptCallback(Callback):
+        def __init__(self):
+            super().__init__()
+            self.exc_info = None
+
+        def on_interrupted(self, trainer, pl_module):
+            self.exc_info = sys.exc_info()
+
+
     interrupt_callback = InterruptCallback()
+    handle_interrupt_callback = HandleInterruptCallback()
 
     trainer = Trainer(
-        callbacks=[interrupt_callback],
+        callbacks=[interrupt_callback, handle_interrupt_callback],
         max_epochs=1,
         val_percent_check=0.1,
         train_percent_check=0.2,
@@ -640,8 +650,11 @@ def test_trainer_interrupted_flag(tmpdir):
         default_root_dir=tmpdir,
     )
     assert not trainer.interrupted
+    assert handle_interrupt_callback.exc_info is None
     trainer.fit(model)
     assert trainer.interrupted
+    assert isinstance(handle_interrupt_callback.exc_info[1], KeyboardInterrupt)
+
 
 
 def test_gradient_clipping(tmpdir):
